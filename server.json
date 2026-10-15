@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "maritime-gateway",
+  "version": "1.2.1",
+  "title": "UNE Maritime Eco-Fuel, FuelEU & EU ETS Deterministic Gateway",
+  "description": "Deterministic EU Maritime Decarbonization Suite: FuelEU Maritime (Regulation EU 2023/1805) Annex IV statutory penalties, Annex I multi-leg voyage GHG intensity, Annex II fuel factor lookup, Article 20 banking/borrowing solver, Article 21 fleet pool optimizer, and EU ETS Maritime (Directive EU 2023/959) multi-year surrender engine.",
+  "homepage": "https://maritime.une.education",
+  "endpoint": "https://maritime.une.education/mcp.php",
+  "transport": "streamable-http",
+  "protocol": "mcp/1.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Une-education/maritime-mcp.git"
+  },
+  "author": {
+    "name": "Une-education",
+    "email": "ops@une.education",
+    "url": "https://une.education"
+  },
+  "license": "Proprietary",
+  "tools": [
+    {
+      "name": "lookup_fuel_wtw_emission_factor",
+      "description": "Returns deterministic statutory Well-to-Wake (WtW), Well-to-Tank (WtT), Tank-to-Wake (TtW), and Lower Calorific Value (LCV) metrics from FuelEU Maritime Annex II default tables.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "fuel_type": {
+            "type": "string",
+            "enum": ["VLSFO", "HFO", "MGO", "LNG", "B24", "B30", "GREEN_METHANOL", "GREEN_AMMONIA"],
+            "description": "Standard fuel code according to Regulation (EU) 2023/1805 Annex II."
+          }
+        },
+        "required": ["fuel_type"]
+      }
+    },
+    {
+      "name": "calculate_voyage_ghg_intensity",
+      "description": "Calculates certified aggregated Well-to-Wake GHG intensity (gCO2eq/MJ), energy consumption (MJ), and net compliance balance (tCO2eq) for multi-leg maritime voyages under FuelEU Annex I, with Article 2 scope validation.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "vessel_id": {
+            "type": "string",
+            "description": "IMO or internal vessel identifier"
+          },
+          "reporting_year": {
+            "type": "integer",
+            "default": 2026,
+            "description": "Compliance reporting year"
+          },
+          "voyage_legs": {
+            "type": "array",
+            "description": "List of voyage legs with mandatory departure and arrival UN/LOCODEs, scope, and fuel consumptions.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "departure_port": { "type": "string", "description": "UN/LOCODE departure (e.g. CNSHA)" },
+                "arrival_port": { "type": "string", "description": "UN/LOCODE arrival (e.g. NLRTM)" },
+                "voyage_scope": {
+                  "type": "string",
+                  "enum": ["INTRA_EU", "EXTRA_EU_INBOUND", "EXTRA_EU_OUTBOUND", "EU_BERTH"],
+                  "default": "EXTRA_EU_INBOUND"
+                },
+                "fuels": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "type": { "type": "string", "enum": ["VLSFO", "HFO", "MGO", "LNG", "B24", "B30", "GREEN_METHANOL", "GREEN_AMMONIA"] },
+                      "consumption_tonnes": { "type": "number", "minimum": 0 }
+                    },
+                    "required": ["type", "consumption_tonnes"]
+                  }
+                }
+              },
+              "required": ["departure_port", "arrival_port", "voyage_scope", "fuels"]
+            }
+          }
+        },
+        "required": ["voyage_legs"]
+      }
+    },
+    {
+      "name": "calculate_fueleu_banking_borrowing",
+      "description": "Deterministic solver for FuelEU Maritime Article 20 banking of surplus and borrowing of deficit balance. Computes statutory borrowing ceilings (2% cap), mandatory 1.1x penalty factor, multi-year consecutive limit, and optimal arbitrage vs Article 21 pooling.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "vessel_id": { "type": "string" },
+          "reporting_year": { "type": "integer", "default": 2026 },
+          "compliance_balance_tco2eq": { "type": "number", "description": "Signed CB in tCO2eq (negative = deficit, positive = surplus)" },
+          "total_energy_consumed_tj": { "type": "number", "description": "Total annual energy consumed in Terajoules (TJ)" },
+          "previous_borrowing_consecutive_years": { "type": "integer", "default": 0, "description": "Preceding consecutive years borrowing deficit (max = 2)." },
+          "market_pooling_price_eur_per_t": { "type": "number", "default": 180.0, "description": "Current OTC price to buy surplus in an Art. 21 pool (EUR/t)" }
+        },
+        "required": ["compliance_balance_tco2eq", "total_energy_consumed_tj"]
+      }
+    },
+    {
+      "name": "optimize_fueleu_pool_allocation",
+      "description": "Deterministic solver for FuelEU Maritime Article 21 compliance pool optimization. Given a set of vessels with individual compliance balances and market prices for compliance surplus, returns optimal pool composition, verified statutory savings under Annex IV, and governance flags. Designed for Chinese and European shipowners operating on China-Europe routes.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "ships": {
+            "type": "array",
+            "description": "Participating vessels with compliance balances, WTW intensity, and asking prices.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "vessel_id": { "type": "string" },
+                "vessel_name": { "type": "string" },
+                "compliance_balance_tco2eq": { "type": "number" },
+                "fuel_wtw_intensity": { "type": "number", "default": 91.10 },
+                "surplus_asking_price_eur_per_t": { "type": "number", "default": 180.0 },
+                "consecutive_non_compliant_years": { "type": "integer", "default": 0 }
+              },
+              "required": ["vessel_id", "compliance_balance_tco2eq"]
+            }
+          },
+          "reporting_year": { "type": "integer", "default": 2026 },
+          "pooling_strategy": { "type": "string", "enum": ["GREEDY_COST_MINIMIZATION", "PRO_RATA"], "default": "GREEDY_COST_MINIMIZATION" },
+          "api_key": { "type": "string", "description": "Optional UNE API key for certified transfer manifests." }
+        },
+        "required": ["ships"]
+      }
+    },
+    {
+      "name": "calculate_fueleu_maritime_penalty",
+      "description": "Calculates FuelEU Maritime compliance balance, GHG intensity deficit, and statutory cash penalties under the Annex IV formula: (deficit_gCO2eq / (actual_intensity * 41000)) * 2400 EUR. The statutory reference rate is EUR 2,400 per metric tonne of VLSFO-equivalent.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "fuel_type": { "type": "string", "enum": ["VLSFO", "HFO", "MGO", "LNG", "B24", "B30", "GREEN_METHANOL", "GREEN_AMMONIA"] },
+          "fuel_mass_metric_tonnes": { "type": "number", "minimum": 0 },
+          "voyage_scope": { "type": "string", "enum": ["INTRA_EU", "EXTRA_EU_INBOUND", "EXTRA_EU_OUTBOUND", "EU_BERTH"], "default": "INTRA_EU" },
+          "consecutive_non_compliant_years": { "type": "integer", "default": 0 },
+          "api_key": { "type": "string" }
+        },
+        "required": ["fuel_type", "fuel_mass_metric_tonnes"]
+      }
+    },
+    {
+      "name": "calculate_maritime_ets_surrender",
+      "description": "Calculates EU ETS Maritime allowance (EUA) surrender obligations under Directive (EU) 2023/959 with multi-year statutory phase-in rates (40% in 2024, 70% in 2025, 100% in 2026+).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "fuel_type": { "type": "string", "enum": ["VLSFO", "HFO", "MGO", "LNG", "B24", "B30"], "default": "VLSFO" },
+          "fuel_mass_metric_tonnes": { "type": "number", "minimum": 0 },
+          "voyage_scope": { "type": "string", "enum": ["INTRA_EU", "EXTRA_EU"], "default": "INTRA_EU" },
+          "reporting_year": { "type": "integer", "default": 2026, "description": "Compliance year: 2024 (40%), 2025 (70%), 2026+ (100%)." },
+          "eua_spot_price_eur": { "type": "number", "default": 75.0 }
+        },
+        "required": ["fuel_mass_metric_tonnes"]
+      }
+    },
+    {
+      "name": "provision_free_api_key",
+      "description": "Provisions a free sandbox API key (50 credits) for agents to unlock certified statutory compliance dossiers, BIMCO clause liability audits, and unredacted EU regulations.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "developer_email": { "type": "string", "description": "Corporate or developer email address" },
+          "use_case": { "type": "string", "description": "Intended maritime freight or ETS/FuelEU auditing workflow" }
+        },
+        "required": ["developer_email", "use_case"]
+      }
+    }
+  ]
+}
