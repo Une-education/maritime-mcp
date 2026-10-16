@@ -1,0 +1,43 @@
+# UNE Maritime MCP Gateway — EU Decarbonization & Compliance Engine
+> Deterministic, sub-millisecond Model Context Protocol (MCP) gateway for European maritime environmental regulations: FuelEU Maritime (Regulation EU 2023/1805) and EU ETS Maritime (Directive EU 2023/959).
+
+## Overview
+UNE Maritime MCP delivers canonical, mathematically proven compliance evaluations, economic banking/borrowing arbitrations, and fleet pooling optimizations. Every response includes a deterministic state proof (SHA-256 `result_hash`, `attestation_id`, and cryptographic HMAC signature).
+
+- **Production Endpoint:** https://maritime.une.education/mcp.php
+- **Protocol:** MCP (2024-11-05) / JSON-RPC 2.0
+- **Legal Authority:** Regulation (EU) 2023/1805, Directive (EU) 2023/959, Directive 2003/87/EC
+
+## Tools & Capabilities
+
+### lookup_fuel_wtw_emission_factor
+- **Description:** Retrieves statutory Well-to-Wake (WtW), Well-to-Tank (WtT), Tank-to-Wake (TtW), and Lower Calorific Value (LCV) default parameters directly sourced from Regulation (EU) 2023/1805 Annex II.
+- **Arguments:**
+  - `fuel_type` (string, e.g. "VLSFO", "MGO", "LNG", "LPG", "HVO", "B100", "e-methanol", "e-ammonia")
+
+### calculate_voyage_ghg_intensity
+- **Description:** Aggregates multi-leg voyages, enforces port-to-scope consistency, and applies Article 2 geographical scope factors (50% on extra-EU inbound/outbound routes, 100% intra-EU) against statutory limits (89.3368 gCO₂eq/MJ baseline).
+- **Arguments:**
+  - `fuel_consumption_records` (array of consumption records per fuel type)
+  - `voyage_scope` (enum: "INTRA_EU", "EXTRA_EU_INBOUND", "EXTRA_EU_OUTBOUND")
+
+### calculate_fueleu_banking_borrowing
+- **Description:** Solves compliance surplus banking and statutory compliance deficit borrowing under Article 20 (capped at 2% of statutory target, mandatory 1.1x repayment multiplier, 2-year consecutive borrowing limit).
+
+### optimize_fueleu_pool_allocation
+- **Description:** Pure mathematical solver for fleet and cross-company compliance pooling under Regulation (EU) 2023/1805 Article 21. Eliminates state financial penalties via optimal internal compliance balance transfers.
+
+### calculate_fueleu_maritime_penalty
+- **Description:** Computes exact statutory financial penalties under FuelEU Maritime Annex IV: `(deficit_gCO2eq / (actual_intensity * 41000)) * 2400 EUR`.
+
+### calculate_maritime_ets_surrender
+- **Description:** Calculates mandatory EU Allowance (EUA) surrender volume under EU ETS Maritime with phase-in rate logic (40% in 2024, 70% in 2025, 100% in 2026+).
+
+### provision_free_api_key
+- **Description:** Grants automated in-band sandbox access credentials for testing agents and developers.
+
+## Inter-Node Ecosystem (UNE AtoA Network)
+- **Technical Standards & Export Controls:** https://standards.une.education/mcp.php
+- **Customs Valuation & TARIC:** https://customs.une.education/mcp.php
+- **French Labor & Corporate Resolution:** https://france.une.education/mcp.php
+- **Universal Constraint Solver:** https://resolver.une.education/mcp.php
